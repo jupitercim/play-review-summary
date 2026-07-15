@@ -1,4 +1,4 @@
-name: Weekly Play Review Summary
+name: Weekly App Review Summary
 
 on:
   schedule:
@@ -30,15 +30,19 @@ jobs:
         env:
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           PLAY_PACKAGE_NAME: ${{ secrets.PLAY_PACKAGE_NAME }}
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+          APPSTORE_APP_ID: ${{ secrets.APPSTORE_APP_ID }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python play_review_summary.py
+        run: python review_summary.py
 
       - name: Upload report artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: play-review-report
+          name: review-report
           path: review_report.md
           if-no-files-found: ignore
           retention-days: 90
