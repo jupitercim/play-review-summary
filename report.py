@@ -47,6 +47,11 @@ def _telegram_platform_section(platform):
         return lines
 
     summary = platform["summary"]
+    if summary["total"] == 0:
+        lines.append("本周无评论")
+        lines.append("")
+        return lines
+
     lines.append("评论总数：{}".format(summary["total"]))
     lines.append("好评（≥4星）：{}".format(summary["good"]))
     lines.append("差评（&lt;4星）：{}".format(summary["bad"]))
@@ -98,6 +103,12 @@ def _markdown_platform_section(platform):
         return lines
 
     summary = platform["summary"]
+    if summary["total"] == 0:
+        lines.append("")
+        lines.append("本周无评论")
+        lines.append("")
+        return lines
+
     lines.append("")
     lines.append("| 指标 | 数量 |")
     lines.append("| --- | --- |")

@@ -156,6 +156,14 @@ class BuildTelegramReportTest(unittest.TestCase):
         self.assertIn("网络超时", result)
         self.assertIn("401 Unauthorized", result)
 
+    def test_no_reviews_shows_single_line_message(self):
+        android = make_platform("📱", "Android", "com.example.app", "app_version", "版本", entries=[])
+        ios = make_platform("🍎", "iOS", "123456789", "territory", "地区", entries=[])
+        result = report.build_telegram_report(android, ios, PERIOD_START, PERIOD_END)
+        self.assertEqual(result.count("本周无评论"), 2)
+        self.assertNotIn("评论总数", result)
+        self.assertNotIn("本周没有差评", result)
+
 
 class BuildMarkdownReportTest(unittest.TestCase):
     def test_contains_counts_and_bad_review_table_for_both_platforms(self):
@@ -192,6 +200,14 @@ class BuildMarkdownReportTest(unittest.TestCase):
         self.assertIn("获取失败", android_section)
         self.assertIn("网络超时", android_section)
         self.assertNotIn("评论总数", android_section)
+
+    def test_no_reviews_shows_single_line_message(self):
+        android = make_platform("📱", "Android", "com.example.app", "app_version", "版本", entries=[])
+        ios = make_platform("🍎", "iOS", "123456789", "territory", "地区", entries=[])
+        result = report.build_markdown_report(android, ios, PERIOD_START, PERIOD_END)
+        self.assertEqual(result.count("本周无评论"), 2)
+        self.assertNotIn("评论总数", result)
+        self.assertNotIn("没有差评", result)
 
 
 class ChunkMessageTest(unittest.TestCase):
