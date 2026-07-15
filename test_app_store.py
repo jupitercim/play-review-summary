@@ -110,10 +110,16 @@ class FetchReviewsPaginationTest(unittest.TestCase):
         page2 = _fake_response(
             {
                 "data": [_apple_review(OUT_OF_WINDOW_ISO, 1, "Bad", "Meh", "USA", "bob")],
+                "links": {"next": "https://api.appstoreconnect.apple.com/v1/apps/123/customerReviews?cursor=def"},
+            }
+        )
+        page3 = _fake_response(
+            {
+                "data": [_apple_review("2020-01-01T00:00:00Z", 2, "Ancient", "review", "USA", "carol")],
                 "links": {},
             }
         )
-        mock_get.side_effect = [page1, page2]
+        mock_get.side_effect = [page1, page2, page3]
 
         reviews = app_store.fetch_reviews(
             "123", "KEY123", "ISSUER456", self.private_key_pem, since=SINCE,
