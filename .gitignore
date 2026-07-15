@@ -2,4 +2,5 @@ __pycache__/
 *.pyc
 review_report.md
 service-account*.json
+*.p8
 .venv/
