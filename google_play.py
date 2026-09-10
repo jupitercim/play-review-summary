@@ -102,17 +102,33 @@ def parse_installs_csv(raw_bytes):
     return rows
 
 
-def make_storage_downloader(bucket, service_account_info):
-    """返回 downloader(object_name) -> bytes | None（对象不存在时返回 None）。"""
+def _storage_error_message(response):
+    """Cloud Storage 的错误体是 {"error": {"message": ...}}，里面会写清是哪个账号缺哪个权限，
+    或者是项目没启用 Cloud Storage JSON API；拿不到 JSON 就退回原始文本。"""
+    try:
+        message = response.json()["error"]["message"]
+        if message:
+            return str(message).strip()
+    except Exception:  # noqa: BLE001 - 非 JSON 错误体
+        pass
+    return (response.text or "").strip()
+
+
+def make_storage_downloader(bucket, service_account_info, session=None):
+    """返回 downloader(object_name) -> bytes | None（对象不存在时返回 None）。
+
+    session 参数供测试注入；不传时用 service account 凭证建 AuthorizedSession。
+    """
     from urllib.parse import quote
 
-    from google.auth.transport.requests import AuthorizedSession
-    from google.oauth2 import service_account
+    if session is None:
+        from google.auth.transport.requests import AuthorizedSession
+        from google.oauth2 import service_account
 
-    credentials = service_account.Credentials.from_service_account_info(
-        service_account_info, scopes=[STORAGE_SCOPE]
-    )
-    session = AuthorizedSession(credentials)
+        credentials = service_account.Credentials.from_service_account_info(
+            service_account_info, scopes=[STORAGE_SCOPE]
+        )
+        session = AuthorizedSession(credentials)
 
     def download(object_name):
         url = STORAGE_OBJECT_URL.format(bucket=bucket, object=quote(object_name, safe=""))
@@ -120,7 +136,12 @@ def make_storage_downloader(bucket, service_account_info):
         if response.status_code == 404:
             print("报表桶 {}：{} 不存在（HTTP 404）".format(bucket, object_name))
             return None
-        response.raise_for_status()
+        if response.status_code != 200:
+            raise RuntimeError(
+                "读取报表桶 {} 失败（HTTP {}）：{}".format(
+                    bucket, response.status_code, _storage_error_message(response)
+                )
+            )
         print("报表桶 {}：{} 已下载（{} 字节）".format(bucket, object_name, len(response.content)))
         return response.content
 

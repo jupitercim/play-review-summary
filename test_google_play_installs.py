@@ -130,3 +130,66 @@ class FetchInstallsTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StorageDownloaderTest(unittest.TestCase):
+    """make_storage_downloader 通过注入 session 隔离鉴权和网络。"""
+
+    def _session(self, status_code, content=b"", json_body=None, text=""):
+        import contextlib
+        import io
+        from unittest import mock
+
+        response = mock.Mock()
+        response.status_code = status_code
+        response.content = content
+        response.text = text
+        if json_body is None:
+            response.json.side_effect = ValueError("not json")
+        else:
+            response.json.return_value = json_body
+        session = mock.Mock()
+        session.get.return_value = response
+        self._quiet = contextlib.redirect_stdout(io.StringIO())
+        return session
+
+    def test_returns_content_and_requests_encoded_object_url(self):
+        session = self._session(200, content=b"csv-bytes")
+        download = google_play.make_storage_downloader("pubsite_prod_rev_1", None, session=session)
+        with self._quiet:
+            result = download("stats/installs/installs_com.example.app_202609_overview.csv")
+        self.assertEqual(result, b"csv-bytes")
+        url = session.get.call_args.args[0]
+        self.assertEqual(
+            url,
+            "https://storage.googleapis.com/storage/v1/b/pubsite_prod_rev_1/o/"
+            "stats%2Finstalls%2Finstalls_com.example.app_202609_overview.csv?alt=media",
+        )
+
+    def test_404_means_missing_file(self):
+        session = self._session(404, json_body={"error": {"code": 404, "message": "No such object"}})
+        download = google_play.make_storage_downloader("pubsite_prod_rev_1", None, session=session)
+        with self._quiet:
+            self.assertIsNone(download("stats/installs/x.csv"))
+
+    def test_403_raises_with_cloud_storage_message(self):
+        gcs_message = (
+            "bot@proj.iam.gserviceaccount.com does not have storage.objects.get access to the "
+            "Google Cloud Storage object. Permission 'storage.objects.get' denied on resource (or it may not exist)."
+        )
+        session = self._session(403, json_body={"error": {"code": 403, "message": gcs_message}})
+        download = google_play.make_storage_downloader("pubsite_prod_rev_1", None, session=session)
+        with self._quiet, self.assertRaises(RuntimeError) as ctx:
+            download("stats/installs/x.csv")
+        message = str(ctx.exception)
+        self.assertIn("403", message)
+        self.assertIn("storage.objects.get", message)
+        self.assertIn("pubsite_prod_rev_1", message)
+
+    def test_non_json_error_body_falls_back_to_text(self):
+        session = self._session(500, text="<html>Internal error</html>")
+        download = google_play.make_storage_downloader("pubsite_prod_rev_1", None, session=session)
+        with self._quiet, self.assertRaises(RuntimeError) as ctx:
+            download("stats/installs/x.csv")
+        self.assertIn("500", str(ctx.exception))
+        self.assertIn("Internal error", str(ctx.exception))
