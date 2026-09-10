@@ -14,10 +14,9 @@ import os
 import sys
 from datetime import datetime, timedelta, timezone
 
-import requests
-
 import app_store
 import google_play
+import notify
 import report
 
 REVIEW_WINDOW_DAYS = 7
@@ -94,36 +93,6 @@ def fetch_ios(period_start):
     return platform
 
 
-def send_to_telegram(bot_token, chat_id, text):
-    url = "https://api.telegram.org/bot{}/sendMessage".format(bot_token)
-    for chunk in report.chunk_message(text):
-        response = requests.post(
-            url,
-            json={
-                "chat_id": chat_id,
-                "text": chunk,
-                "parse_mode": "HTML",
-                "disable_web_page_preview": True,
-            },
-            timeout=30,
-        )
-        if response.status_code != 200:
-            raise RuntimeError(
-                "Telegram 发送失败（HTTP {}）：{}".format(
-                    response.status_code, response.text
-                )
-            )
-
-
-def write_report_outputs(markdown_report):
-    with open(REPORT_FILE, "w", encoding="utf-8") as f:
-        f.write(markdown_report)
-    step_summary = os.environ.get("GITHUB_STEP_SUMMARY")
-    if step_summary:
-        with open(step_summary, "a", encoding="utf-8") as f:
-            f.write(markdown_report + "\n")
-
-
 def main():
     bot_token = require_env("TELEGRAM_BOT_TOKEN")
     chat_id = require_env("TELEGRAM_CHAT_ID")
@@ -154,10 +123,10 @@ def main():
         )
 
     markdown_report = report.build_markdown_report(android, ios, period_start, period_end)
-    write_report_outputs(markdown_report)
+    notify.write_report_outputs(markdown_report, REPORT_FILE)
 
     telegram_report = report.build_telegram_report(android, ios, period_start, period_end)
-    send_to_telegram(bot_token, chat_id, telegram_report)
+    notify.send_to_telegram(bot_token, chat_id, telegram_report)
     print("已推送到 Telegram。")
 
 
