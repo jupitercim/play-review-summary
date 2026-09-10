@@ -109,8 +109,19 @@ class FetchInstallsTest(unittest.TestCase):
         self.assertEqual(result["date"], date(2026, 8, 31))
         self.assertEqual(download.calls, [september, august])
 
-    def test_returns_none_when_no_data_in_either_month(self):
+    def test_raises_naming_missing_files_when_no_report_exists_at_all(self):
         download = self._downloader({})
+        with self.assertRaises(google_play.InstallsReportNotFound) as ctx:
+            google_play.fetch_installs("com.example.app", date(2026, 9, 8), downloader=download)
+        message = str(ctx.exception)
+        self.assertIn("installs_com.example.app_202609_overview.csv", message)
+        self.assertIn("installs_com.example.app_202608_overview.csv", message)
+        self.assertIn("PLAY_REPORTS_BUCKET", message)
+
+    def test_returns_none_when_files_exist_but_have_no_usable_rows(self):
+        september = "stats/installs/installs_com.example.app_202609_overview.csv"
+        august = "stats/installs/installs_com.example.app_202608_overview.csv"
+        download = self._downloader({september: make_installs_csv([]), august: make_installs_csv([])})
         result = google_play.fetch_installs(
             "com.example.app", date(2026, 9, 8), downloader=download
         )

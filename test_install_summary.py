@@ -36,6 +36,12 @@ class NormalizeBucketTest(unittest.TestCase):
             install_summary.normalize_bucket("gs://pubsite_prod_rev_123/"), "pubsite_prod_rev_123"
         )
 
+    def test_drops_report_path_copied_from_play_console(self):
+        self.assertEqual(
+            install_summary.normalize_bucket("gs://pubsite_prod_rev_123/stats/installs/"),
+            "pubsite_prod_rev_123",
+        )
+
     def test_keeps_plain_bucket_name(self):
         self.assertEqual(install_summary.normalize_bucket("pubsite_prod_rev_123"), "pubsite_prod_rev_123")
 

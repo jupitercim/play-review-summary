@@ -47,7 +47,7 @@
 3. 打开 [Google Play Console](https://play.google.com/console/) →「用户和权限」→ 邀请用户，填入 service account 的邮箱地址（形如 `xxx@yyy.iam.gserviceaccount.com`）。
 4. 评论接口需要应用级权限：至少勾选 **「查看应用信息（只读）」** 和 **「回复评价」**。
 5. 安装量需要**账号级**权限：在该用户的「账号权限」里勾选 **「查看应用信息并下载批量报告（只读）」**。官方原文："To access bulk reports, your 'View app information' permission must be set to 'Global'"，只给应用级权限读不到报表桶。新授权可能要几小时到一天才生效。
-6. 获取报表桶地址：Play Console →「下载报告」→「统计信息」→ 点击右上角「复制 Cloud Storage URI」，得到形如 `gs://pubsite_prod_rev_01234567890987654321` 的地址。
+6. 获取报表桶地址：Play Console →「下载报告」→「统计信息」→ 点击右上角「复制 Cloud Storage URI」，得到形如 `gs://pubsite_prod_rev_01234567890987654321/stats/installs/` 的地址，整段粘贴即可。
 
 ### 2. iOS：创建 App Store Connect API Key
 
@@ -71,7 +71,7 @@
 | --- | --- | --- | --- |
 | `PLAY_SERVICE_ACCOUNT_JSON` | service account JSON 文件的**完整内容**（整段粘贴） | ✅ | ✅ |
 | `PLAY_PACKAGE_NAME` | 应用 package id，如 `com.example.app` | ✅ | ✅ |
-| `PLAY_REPORTS_BUCKET` | 报表桶地址，`gs://pubsite_prod_rev_xxx` 或只填桶名都可以 | | ✅ |
+| `PLAY_REPORTS_BUCKET` | 报表桶地址。Play Console 复制出来的 `gs://pubsite_prod_rev_xxx/stats/installs/` 可以直接粘贴，程序只取桶名 | | ✅ |
 | `APPSTORE_KEY_ID` | App Store Connect API Key 的 Key ID | ✅ | ✅ |
 | `APPSTORE_ISSUER_ID` | Issuer ID | ✅ | ✅ |
 | `APPSTORE_PRIVATE_KEY` | `.p8` 私钥文件的**完整内容**（整段粘贴） | ✅ | ✅ |
@@ -84,7 +84,7 @@
 
 推送代码到 GitHub 后，在「Actions」里分别手动触发一次 **Weekly App Review Summary** 和 **Daily App Install Summary**（Run workflow），确认 Telegram 收到消息。之后周报每周一、日报每天北京时间 09:00 自动运行。
 
-日报首次运行常见的两个失败：Android 报 403 说明 service account 还没有账号级的批量报告权限（或权限还没生效）；iOS 报 403 说明 API Key 角色不够。
+日报首次运行常见的失败：Android 报 403 说明 service account 还没有账号级的批量报告权限（或权限还没生效）；Android 报"报表桶里找不到 …"说明桶名或 package name 不对；iOS 报 403 说明 API Key 角色不够。Actions 日志里会打印每个报表文件的下载结果，可据此排查。
 
 ## 修改定时时间
 

@@ -118,8 +118,10 @@ def make_storage_downloader(bucket, service_account_info):
         url = STORAGE_OBJECT_URL.format(bucket=bucket, object=quote(object_name, safe=""))
         response = session.get(url, timeout=60)
         if response.status_code == 404:
+            print("报表桶 {}：{} 不存在（HTTP 404）".format(bucket, object_name))
             return None
         response.raise_for_status()
+        print("报表桶 {}：{} 已下载（{} 字节）".format(bucket, object_name, len(response.content)))
         return response.content
 
     return download
@@ -130,16 +132,26 @@ def _previous_month(day):
     return (first - timedelta(days=1)).replace(day=1)
 
 
+class InstallsReportNotFound(RuntimeError):
+    """报表桶里一个 installs CSV 都找不到：几乎肯定是桶名、package name 或权限配置问题，
+    而不是数据延迟（数据延迟时文件存在、只是缺最近几天的行）。"""
+
+
 def fetch_installs(package_name, target_date, downloader):
     """取 target_date 当天的安装量；该日尚未生成时回退到更早的最新一天。
 
     先读 target_date 所在月份的 CSV，不够再读上个月的（月初几天数据在上月文件里）。
-    两个月都没有可用数据返回 None。返回值带 "date" 字段，调用方据此判断是否回退。
+    文件存在但两个月都没有可用行返回 None；两个文件都不存在抛 InstallsReportNotFound。
+    返回值带 "date" 字段，调用方据此判断是否回退。
     """
     rows = {}
+    missing = []
     for month in (target_date, _previous_month(target_date)):
-        raw = downloader(installs_report_object(package_name, month))
-        if raw:
+        object_name = installs_report_object(package_name, month)
+        raw = downloader(object_name)
+        if raw is None:
+            missing.append(object_name)
+        else:
             rows.update(parse_installs_csv(raw))
         if target_date in rows:
             return dict(rows[target_date], date=target_date)
@@ -147,4 +159,9 @@ def fetch_installs(package_name, target_date, downloader):
         if earlier:
             latest = max(earlier)
             return dict(rows[latest], date=latest)
+    if len(missing) == 2:
+        raise InstallsReportNotFound(
+            "报表桶里找不到 {} 和 {}，请检查 PLAY_REPORTS_BUCKET（只需要桶名）、"
+            "PLAY_PACKAGE_NAME 以及 service account 的账号级批量报告权限。".format(*missing)
+        )
     return None

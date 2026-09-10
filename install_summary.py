@@ -44,11 +44,12 @@ def target_date(now=None):
 
 
 def normalize_bucket(value):
-    """Play Console 复制出来的是 gs://pubsite_prod_rev_xxx/ 形式，接口只要桶名。"""
+    """Play Console「复制 Cloud Storage URI」得到的是 gs://pubsite_prod_rev_xxx/stats/installs/，
+    接口只要桶名。桶名里不可能有斜杠，所以去掉 gs:// 之后取第一段即可。"""
     value = value.strip()
     if value.startswith("gs://"):
         value = value[len("gs://"):]
-    return value.strip("/")
+    return value.strip("/").split("/", 1)[0]
 
 
 def _platform(icon, name, identifier):
