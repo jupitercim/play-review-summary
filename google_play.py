@@ -153,27 +153,27 @@ def _previous_month(day):
     return (first - timedelta(days=1)).replace(day=1)
 
 
-class InstallsReportNotFound(RuntimeError):
-    """报表桶里一个 installs CSV 都找不到：几乎肯定是桶名、package name 或权限配置问题，
+class ReportNotFound(RuntimeError):
+    """报表桶里一个对应的 CSV 都找不到：几乎肯定是桶名、package name 或权限配置问题，
     而不是数据延迟（数据延迟时文件存在、只是缺最近几天的行）。"""
 
 
-def fetch_installs(package_name, target_date, downloader):
-    """取 target_date 当天的安装量；该日尚未生成时回退到更早的最新一天。
+def _fetch_daily_report(object_for_month, parse, target_date, downloader):
+    """月度 CSV 报表的通用读取：取 target_date 当天一行；该日尚未生成时回退到更早的最新一天。
 
-    先读 target_date 所在月份的 CSV，不够再读上个月的（月初几天数据在上月文件里）。
-    文件存在但两个月都没有可用行返回 None；两个文件都不存在抛 InstallsReportNotFound。
+    先读 target_date 所在月份的文件，不够再读上个月的（月初几天数据在上月文件里）。
+    文件存在但两个月都没有可用行返回 None；两个文件都不存在抛 ReportNotFound。
     返回值带 "date" 字段，调用方据此判断是否回退。
     """
     rows = {}
     missing = []
     for month in (target_date, _previous_month(target_date)):
-        object_name = installs_report_object(package_name, month)
+        object_name = object_for_month(month)
         raw = downloader(object_name)
         if raw is None:
             missing.append(object_name)
         else:
-            rows.update(parse_installs_csv(raw))
+            rows.update(parse(raw))
         if target_date in rows:
             return dict(rows[target_date], date=target_date)
         earlier = [day for day in rows if day < target_date]
@@ -181,8 +181,60 @@ def fetch_installs(package_name, target_date, downloader):
             latest = max(earlier)
             return dict(rows[latest], date=latest)
     if len(missing) == 2:
-        raise InstallsReportNotFound(
+        raise ReportNotFound(
             "报表桶里找不到 {} 和 {}，请检查 PLAY_REPORTS_BUCKET（只需要桶名）、"
             "PLAY_PACKAGE_NAME 以及 service account 的账号级批量报告权限。".format(*missing)
         )
     return None
+
+
+def fetch_installs(package_name, target_date, downloader):
+    """installs 报表：target_date 当天的用户/设备安装量，见 _fetch_daily_report 的回退规则。"""
+    return _fetch_daily_report(
+        lambda month: installs_report_object(package_name, month),
+        parse_installs_csv,
+        target_date,
+        downloader,
+    )
+
+
+# ---------------------------------------------------------------------------
+# 商店表现（store_performance）：详情页访客 / 商店获取用户，按国家维度的文件逐日求和。
+# 口径：访客 = 访问过详情页且当时没装过的用户；获取 = 访问详情页后安装、且此前任何设备都
+# 没装过的用户。和 installs 报表相比不含多设备安装和无详情页安装，但目前更新正常。
+# ---------------------------------------------------------------------------
+
+
+def store_performance_report_object(package_name, month):
+    return "stats/store_performance/store_performance_{}_{}_country.csv".format(
+        package_name, month.strftime("%Y%m")
+    )
+
+
+def parse_store_performance_csv(raw_bytes):
+    """把 UTF-16 的 store_performance country CSV 按日期汇总成 {date: {"acquisitions", "visitors"}}。"""
+    import csv
+    import io
+    from datetime import date
+
+    reader = csv.DictReader(io.StringIO(raw_bytes.decode("utf-16")))
+    rows = {}
+    for record in reader:
+        raw_date = (record.get("Date") or "").strip()
+        if not raw_date:
+            continue
+        day = date.fromisoformat(raw_date)
+        totals = rows.setdefault(day, {"acquisitions": 0, "visitors": 0})
+        totals["acquisitions"] += _to_int(record.get("Store listing acquisitions"))
+        totals["visitors"] += _to_int(record.get("Store listing visitors"))
+    return rows
+
+
+def fetch_store_performance(package_name, target_date, downloader):
+    """store_performance 报表：target_date 当天的详情页访客与商店获取用户，见 _fetch_daily_report 的回退规则。"""
+    return _fetch_daily_report(
+        lambda month: store_performance_report_object(package_name, month),
+        parse_store_performance_csv,
+        target_date,
+        downloader,
+    )

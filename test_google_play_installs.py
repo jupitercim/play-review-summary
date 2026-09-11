@@ -111,7 +111,7 @@ class FetchInstallsTest(unittest.TestCase):
 
     def test_raises_naming_missing_files_when_no_report_exists_at_all(self):
         download = self._downloader({})
-        with self.assertRaises(google_play.InstallsReportNotFound) as ctx:
+        with self.assertRaises(google_play.ReportNotFound) as ctx:
             google_play.fetch_installs("com.example.app", date(2026, 9, 8), downloader=download)
         message = str(ctx.exception)
         self.assertIn("installs_com.example.app_202609_overview.csv", message)

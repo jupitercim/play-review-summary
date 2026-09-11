@@ -15,8 +15,9 @@ import html
 DATA_LAG_DAYS = 2
 
 FOOTNOTE = (
-    "注：Android 数据来自 Play Console 统计报表（用户安装按用户计，设备安装含重装）；"
-    "iOS 数据来自 Sales and Trends 日报，按太平洋时间切日，首次下载不含重新下载。"
+    "注：Android 数据来自 Play Console 商店表现报表：详情页访客 = 访问过详情页且当时未安装的用户，"
+    "商店获取用户 = 访问详情页后安装、且此前任何设备都未安装的用户；"
+    "iOS 数据来自 Sales and Trends 日报，首次下载不含重新下载。两边都按太平洋时间切日。"
 )
 
 

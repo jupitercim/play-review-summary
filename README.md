@@ -18,7 +18,8 @@
 - **为什么是前天（D-2）**：
   - Google Play 没有安装量 API，只能读 Play Console 导出到 Cloud Storage 的月度 CSV。官方说明是"Data is captured daily and posted within 3 to 7 days"，实测通常滞后 2～3 天。
   - App Store 每日销售报告按**太平洋时间**切日，官方说明"generally available by 8 a.m. Pacific Time"，即北京时间约 23:00～次日 00:00 才有前一天的数据。北京早上 9 点跑任务时，最新可用的是前天。
-- **Android 指标**（来自 `stats/installs/*_overview.csv`）：用户安装（Daily User Installs，按用户计）、设备安装（Daily Device Installs，含同一用户换机/重装）、设备卸载。如果前天的数据还没生成，报告会回退到最新可用的一天并标注日期。
+- **Android 指标**（来自商店表现报表 `stats/store_performance/*_country.csv`，按天把各国家行求和）：**详情页访客**（Store listing visitors：访问过详情页且当时未安装的用户）、**商店获取用户**（Store listing acquisitions：访问详情页后安装、且此前任何设备都未安装的用户）、**转化率**（两者相除）。它和 installs 报表的 Daily User Installs 量级基本一致（2026 年 8 月 1～21 日合计 1515 vs 1452），但不含多设备安装和无详情页安装。之所以不用 installs 报表：它的导出自 2026-08-26 起停更（数据止于 08-21），而商店表现报表一直正常；代码里 `google_play.fetch_installs` 保留着，Google 恢复后可切回。
+- Google 报表实测滞后约一周（不是 2～3 天），所以 Android 基本每天都会回退到最新可用的一天，并在报告里标注真实日期。
 - **iOS 指标**（来自 Sales and Trends 日报，按 Product Type Identifier 归类）：首次下载（1 / 1F / 1T / 1E / 1EP / 1EU / 1-B）、重新下载（3 / 3F）、更新（7 / 7F / 7T）。当天零下载时 Apple 返回 404 "There were no sales for the date specified"，报告按 0 处理；报告尚未生成时显示"获取失败"并附 Apple 的原始说明。
 - 两个平台各自独立：其中一个平台配置有误、拉取失败或数据没出，不影响另一个平台正常展示。
 
@@ -28,7 +29,7 @@
 | --- | --- |
 | `review_summary.py` | 周报入口：读取环境变量 → 分别拉取两平台评论 → 生成合并报告 → 推送 Telegram |
 | `install_summary.py` | 日报入口：计算 D-2 → 分别拉取两平台安装量 → 生成报告 → 推送 Telegram |
-| `google_play.py` | Android：评论拉取（Google Play Developer API）+ 安装量读取（Cloud Storage 报表桶） |
+| `google_play.py` | Android：评论拉取（Google Play Developer API）+ 商店表现 / 安装量报表读取（Cloud Storage 报表桶） |
 | `app_store.py` | iOS：评论拉取 + 每日销售报告拉取（App Store Connect API，JWT 鉴权） |
 | `report.py` | 评价统计逻辑 + 周报 Telegram / Markdown 生成 |
 | `install_report.py` | 安装量日报 Telegram / Markdown 生成 |

@@ -53,24 +53,31 @@ class FetchAndroidTest(unittest.TestCase):
         self.assertIsNone(platform["metrics"])
         self.assertIn("PLAY_REPORTS_BUCKET", platform["error"])
 
-    @mock.patch("install_summary.google_play.fetch_installs")
+    @mock.patch("install_summary.google_play.fetch_store_performance")
     @mock.patch("install_summary.google_play.make_storage_downloader")
-    def test_maps_installs_into_metrics(self, mock_downloader, mock_fetch):
-        mock_fetch.return_value = {
-            "date": TARGET, "user_installs": 123, "device_installs": 130, "device_uninstalls": 20,
-        }
+    def test_maps_store_performance_into_metrics_with_conversion_rate(self, mock_downloader, mock_fetch):
+        mock_fetch.return_value = {"date": TARGET, "acquisitions": 98, "visitors": 228}
         with mock.patch.dict(os.environ, ANDROID_ENV, clear=True):
             platform = install_summary.fetch_android(TARGET)
 
         self.assertIsNone(platform["error"])
         self.assertEqual(platform["data_date"], TARGET)
         self.assertEqual(
-            platform["metrics"], [("用户安装", 123), ("设备安装", 130), ("设备卸载", 20)]
+            platform["metrics"],
+            [("详情页访客", 228), ("商店获取用户", 98), ("转化率", "43.0%")],
         )
         mock_downloader.assert_called_once_with("pubsite_prod_rev_123", {"type": "service_account"})
         mock_fetch.assert_called_once_with("com.example.app", TARGET, mock_downloader.return_value)
 
-    @mock.patch("install_summary.google_play.fetch_installs", return_value=None)
+    @mock.patch("install_summary.google_play.fetch_store_performance")
+    @mock.patch("install_summary.google_play.make_storage_downloader")
+    def test_zero_visitors_shows_dash_instead_of_dividing_by_zero(self, _downloader, mock_fetch):
+        mock_fetch.return_value = {"date": TARGET, "acquisitions": 0, "visitors": 0}
+        with mock.patch.dict(os.environ, ANDROID_ENV, clear=True):
+            platform = install_summary.fetch_android(TARGET)
+        self.assertEqual(platform["metrics"][2], ("转化率", "-"))
+
+    @mock.patch("install_summary.google_play.fetch_store_performance", return_value=None)
     @mock.patch("install_summary.google_play.make_storage_downloader")
     def test_no_data_leaves_metrics_empty_without_error(self, _downloader, _fetch):
         with mock.patch.dict(os.environ, ANDROID_ENV, clear=True):

@@ -1,9 +1,14 @@
 """每天汇总 Android + iOS 前天（D-2）的应用安装量并推送到 Telegram。
 
 为什么是 D-2 而不是前一天：
-- Google Play 安装量只能从 Play Console 报表桶读，官方说明数据 3～7 天内发布，实测滞后 2～3 天。
+- Google Play 只能从 Play Console 报表桶读月度 CSV，官方说明数据 3～7 天内发布，实测滞后约一周，
+  所以 Android 基本每天都会回退到"最新可用的一天"并标注日期。
 - App Store 每日销售报告按太平洋时间切日，"generally available by 8 a.m. PT"，
   即北京时间约 23:00～00:00 才有前一天的数据；北京早上 9 点跑任务时最新只有 D-2。
+
+Android 用的是商店表现（store_performance）报表的详情页访客 / 商店获取用户，而不是 installs 报表：
+installs 导出自 2026-08-26 起停更（数据止于 08-21），store_performance 一直正常。
+google_play.fetch_installs 保留着，Google 恢复导出后可以切回去。
 
 环境变量：
 - PLAY_SERVICE_ACCOUNT_JSON / PLAY_PACKAGE_NAME / PLAY_REPORTS_BUCKET        Android
@@ -63,6 +68,13 @@ def _platform(icon, name, identifier):
     }
 
 
+def _conversion_rate(acquisitions, visitors):
+    """用两个总数相除，不平均各国家行的比率；没有访客时不显示。"""
+    if not visitors:
+        return "-"
+    return "{:.1f}%".format(acquisitions / visitors * 100)
+
+
 def fetch_android(target):
     package_name = get_env("PLAY_PACKAGE_NAME")
     service_account_json = get_env("PLAY_SERVICE_ACCOUNT_JSON")
@@ -78,12 +90,12 @@ def fetch_android(target):
         downloader = google_play.make_storage_downloader(
             normalize_bucket(bucket), json.loads(service_account_json)
         )
-        result = google_play.fetch_installs(package_name, target, downloader)
+        result = google_play.fetch_store_performance(package_name, target, downloader)
         if result is not None:
             platform["metrics"] = [
-                ("用户安装", result["user_installs"]),
-                ("设备安装", result["device_installs"]),
-                ("设备卸载", result["device_uninstalls"]),
+                ("详情页访客", result["visitors"]),
+                ("商店获取用户", result["acquisitions"]),
+                ("转化率", _conversion_rate(result["acquisitions"], result["visitors"])),
             ]
             platform["data_date"] = result["date"]
     except Exception as exc:  # noqa: BLE001 - 兜住任意拉取异常，不让 Android 故障拖垮 iOS 那部分
